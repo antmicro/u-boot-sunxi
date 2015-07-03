@@ -74,11 +74,38 @@ void spl_nand_load_image(void)
 		(void *)spl_image.load_addr);
 #endif
 #endif
+#ifdef CONFIG_SPL_MBOOT_PRELOAD
+	puts("Preloading m-boot image.\n");
+	nand_spl_load_image(CONFIG_SYS_NAND_M_BOOT_OFFS,
+			    CONFIG_SYS_NAND_PAGE_SIZE, (void *)header);
+	spl_parse_image_header(header);
+	nand_spl_load_image(CONFIG_SYS_NAND_M_BOOT_OFFS, spl_image.size,
+			    (void *)CONFIG_SPL_MBOOT_PRELOAD_BASE);
+#endif
 	/* Load u-boot */
 	nand_spl_load_image(CONFIG_SYS_NAND_U_BOOT_OFFS,
 		CONFIG_SYS_NAND_PAGE_SIZE, (void *)header);
 	spl_parse_image_header(header);
-	nand_spl_load_image(CONFIG_SYS_NAND_U_BOOT_OFFS,
-		spl_image.size, (void *)spl_image.load_addr);
+	if (header->ih_os == IH_OS_U_BOOT) {
+		nand_spl_load_image(CONFIG_SYS_NAND_U_BOOT_OFFS,
+				    spl_image.size, (void *)spl_image.load_addr);
+		nand_deselect();
+		return;
+	}
+	puts("U-boot header didn't match.\n");
+#ifdef CONFIG_SYS_NAND_U_BOOT_BACKUP_OFFS
+	puts("Trying to start backup u-boot now...\n");
+	nand_spl_load_image(CONFIG_SYS_NAND_U_BOOT_BACKUP_OFFS,
+			    CONFIG_SYS_NAND_PAGE_SIZE, (void *)header);
+	spl_parse_image_header(header);
+	if (header->ih_os == IH_OS_U_BOOT) {
+		nand_spl_load_image(CONFIG_SYS_NAND_U_BOOT_BACKUP_OFFS,
+				    spl_image.size, (void *)spl_image.load_addr);
+		nand_deselect();
+		return;
+	}
+#endif
+	puts("No valid u-boot image found.\n");
 	nand_deselect();
+	hang();
 }

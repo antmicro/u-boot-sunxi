@@ -63,14 +63,20 @@
 #else
 #define PHYS_SDRAM_0_SIZE		0x40000000 /* 1 GiB */
 #endif
-#if 0
-/* Nand config */
+
 #define CONFIG_NAND
 #define CONFIG_NAND_SUNXI
-#define CONFIG_CMD_NAND                         /* NAND support */
-#define CONFIG_SYS_MAX_NAND_DEVICE      1
-#define CONFIG_SYS_NAND_BASE            0x00
-#endif
+
+#define CONFIG_SPL_NAND_DRIVERS
+#define CONFIG_SPL_NAND_SUPPORT
+#define CONFIG_CMD_SPL_WRITE_SIZE           0x000400   /* 1024 byte */
+
+#define CONFIG_SYS_NAND_SPL_KERNEL_OFFS     0x280000
+#define CONFIG_SYS_NAND_U_BOOT_OFFS         0x008000
+#define CONFIG_SYS_NAND_U_BOOT_BACKUP_OFFS  0x208000
+#define CONFIG_SYS_NAND_PAGE_SIZE           0x002000   /* 8kb*/
+
+#define CONFIG_CMD_A20_NANDREAD
 
 #define CONFIG_CMD_MEMORY
 #define CONFIG_CMD_SETEXPR
@@ -81,6 +87,7 @@
 
 /* mmc config */
 /* Can't use MMC slot 0 if the UART is directed there */
+#if !defined CONFIG_SPL_ON_NAND
 #if !defined CONFIG_UART0_PORT_F || CONFIG_MMC_SUNXI_SLOT != 0
 #define CONFIG_MMC
 #define CONFIG_GENERIC_MMC
@@ -90,8 +97,9 @@
 #define CONFIG_MMC_SUNXI_SLOT		0
 #endif
 #define CONFIG_ENV_IS_IN_MMC
-#define CONFIG_SYS_MMC_ENV_DEV		0	/* first detected MMC controller */
-#endif
+#define CONFIG_SYS_MMC_ENV_DEV          0       /* first detected MMC controller */
+#endif /* CONFIG_UART0_PORT_F || CONFIG_MMC_SUNXI_SLOT != 0 */
+#endif /* CONFIG_SPL_ON_NAND */
 
 /* 4MB of malloc() pool */
 #define CONFIG_SYS_MALLOC_LEN		(CONFIG_ENV_SIZE + (4 << 20))
@@ -161,86 +169,90 @@
 #endif
 
 #define CONFIG_EXTRA_ENV_SETTINGS \
-	"bootm_size=0x10000000\0" \
-	"console=ttyS0,115200\0" \
-	"panicarg=panic=10\0" \
-	"extraargs=\0" \
-	"loglevel=8\0" \
-	"scriptaddr=0x44000000\0" \
-	"device=mmc\0" \
-	"partition=0:1\0" \
-	"setargs=" \
-	  "if test -z \\\\\"$root\\\\\"; then"\
-	    " if test \\\\\"$bootpath\\\\\" = \"/boot/\"; then"\
-	      " root=\"/dev/mmcblk0p1 rootwait\";"\
-	    " else" \
-	      " root=\"/dev/mmcblk0p2 rootwait\";"\
-	    " fi;"\
-	  " fi;"\
-	  " setenv bootargs console=${console} root=${root}" \
-	  " loglevel=${loglevel} ${panicarg} ${extraargs}" \
-	  "\0" \
-	"kernel=uImage\0" \
-	"bootenv=uEnv.txt\0" \
-	"bootscr=boot.scr\0" \
-	"script=script.bin\0" \
-	"loadbootscr=" \
-	  "fatload $device $partition $scriptaddr ${bootscr}" \
-	  " || " \
-	  "ext2load $device $partition $scriptaddr boot/${bootscr}" \
-	  " ||" \
-	  "ext2load $device $partition $scriptaddr ${bootscr}" \
-	  "\0" \
-	"loadbootenv=" \
-	  "fatload $device $partition $scriptaddr ${bootenv}" \
-	  " || " \
-	  "ext2load $device $partition $scriptaddr boot/${bootenv}" \
-	  " || " \
-	  "ext2load $device $partition $scriptaddr ${bootenv}" \
-	  "\0" \
-	"loadkernel=" \
-	  "if "\
-	    "bootpath=/boot/" \
-	    " && " \
-	    "ext2load $device $partition 0x43000000 ${bootpath}${script}" \
-	    " && " \
-	    "ext2load $device $partition 0x48000000 ${bootpath}${kernel}" \
-	  ";then true; elif " \
-	    "bootpath=/" \
-	    " && " \
-	    "fatload $device $partition 0x43000000 ${script}" \
-	    " && " \
-	    "fatload $device $partition 0x48000000 ${kernel}" \
-	  ";then true; elif " \
-	    "bootpath=/" \
-	    " && " \
-	    "ext2load $device $partition 0x43000000 ${bootpath}${script}" \
-	    " && " \
-	    "ext2load $device $partition 0x48000000 ${bootpath}${kernel}" \
-	  ";then true; else "\
-	    "false" \
-	  ";fi" \
-	  "\0" \
-	"autoboot=" \
-	  "run loadkernel" \
-	  " && " \
-	  "run setargs" \
-	  " && " \
-	  RESET_WATCHDOG \
-	  " && " \
-	  "bootm 0x48000000" \
-	  "\0" \
-	"boot_ram=" \
-	  "saved_stdout=$stdout;setenv stdout nc;"\
-	  "if iminfo 0x41000000; then" \
-	    " " RESET_WATCHDOG ";"\
-	    " setenv stdout $saved_stdout;" \
-	    " source 0x41000000;" \
-	  "else" \
-	    " setenv stdout $saved_stdout;" \
-	  "fi" \
-	  "\0" \
-	""
+  "uenvcmd=a20_nandread 0x44000000 0x400000 0x700000;" \
+"echo booting from m-boot image @ address 0x44000000...;"               \
+"        imxtract 0x44000000 0 0x46000000; "            \
+        " source 0x46000000\0" \
+        "bootm_size=0x10000000\0" \
+        "console=ttyS0,115200\0" \
+        "panicarg=panic=10\0" \
+        "extraargs=\0" \
+        "loglevel=8\0" \
+        "scriptaddr=0x44000000\0" \
+        "device=mmc\0" \
+        "partition=0:1\0" \
+        "setargs=" \
+          "if test -z \\\\\"$root\\\\\"; then"\
+            " if test \\\\\"$bootpath\\\\\" = \"/boot/\"; then"\
+              " root=\"/dev/mmcblk0p1 rootwait\";"\
+            " else" \
+              " root=\"/dev/mmcblk0p2 rootwait\";"\
+            " fi;"\
+          " fi;"\
+          " setenv bootargs console=${console} root=${root}" \
+          " loglevel=${loglevel} ${panicarg} ${extraargs}" \
+          "\0" \
+        "kernel=uImage\0" \
+        "bootenv=uEnv.txt\0" \
+        "bootscr=boot.scr\0" \
+        "script=script.bin\0" \
+        "loadbootscr=" \
+          "fatload $device $partition $scriptaddr ${bootscr}" \
+          " || " \
+          "ext2load $device $partition $scriptaddr boot/${bootscr}" \
+          " ||" \
+          "ext2load $device $partition $scriptaddr ${bootscr}" \
+          "\0" \
+        "loadbootenv=" \
+          "fatload $device $partition $scriptaddr ${bootenv}" \
+          " || " \
+          "ext2load $device $partition $scriptaddr boot/${bootenv}" \
+          " || " \
+          "ext2load $device $partition $scriptaddr ${bootenv}" \
+          "\0" \
+        "loadkernel=" \
+          "if "\
+            "bootpath=/boot/" \
+            " && " \
+            "ext2load $device $partition 0x43000000 ${bootpath}${script}" \
+            " && " \
+            "ext2load $device $partition 0x48000000 ${bootpath}${kernel}" \
+          ";then true; elif " \
+            "bootpath=/" \
+            " && " \
+            "fatload $device $partition 0x43000000 ${script}" \
+            " && " \
+            "fatload $device $partition 0x48000000 ${kernel}" \
+          ";then true; elif " \
+            "bootpath=/" \
+            " && " \
+            "ext2load $device $partition 0x43000000 ${bootpath}${script}" \
+            " && " \
+            "ext2load $device $partition 0x48000000 ${bootpath}${kernel}" \
+          ";then true; else "\
+            "false" \
+          ";fi" \
+          "\0" \
+        "autoboot=" \
+          "run loadkernel" \
+          " && " \
+          "run setargs" \
+          " && " \
+          RESET_WATCHDOG \
+          " && " \
+          "bootm 0x48000000" \
+          "\0" \
+        "boot_ram=" \
+          "saved_stdout=$stdout;setenv stdout nc;"\
+          "if iminfo 0x41000000; then" \
+            " " RESET_WATCHDOG ";"\
+            " setenv stdout $saved_stdout;" \
+            " source 0x41000000;" \
+          "else" \
+            " setenv stdout $saved_stdout;" \
+          "fi" \
+          "\0" \
+        ""
 
 #define CONFIG_SYS_BOOT_GET_CMDLINE
 
@@ -259,10 +271,6 @@
  * large SPL for A10/A20 with this on. sun5i however accepts a much larger
  * SPL
  */
-#if defined( CONFIG_SUN5I ) || defined ( CONFIG_SYS_THUMB_BUILD )
-#define CONFIG_SPL_OS_BOOT
-#endif
-
 #ifdef CONFIG_SPL_FEL
 
 #define CONFIG_SPL
@@ -284,7 +292,10 @@
 #endif
 
 #define CONFIG_SPL_LIBDISK_SUPPORT
+
+#if !defined CONFIG_SPL_ON_NAND
 #define CONFIG_SPL_MMC_SUPPORT
+#endif /* CONFIG_SPL_ON_NAND */
 
 #define CONFIG_SPL_LDSCRIPT "arch/arm/cpu/armv7/sunxi/u-boot-spl.lds"
 

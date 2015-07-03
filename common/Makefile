@@ -125,6 +125,7 @@ obj-$(CONFIG_CMD_MMC) += cmd_mmc.o
 obj-$(CONFIG_CMD_MMC_SPI) += cmd_mmc_spi.o
 obj-$(CONFIG_MP) += cmd_mp.o
 obj-$(CONFIG_CMD_MTDPARTS) += cmd_mtdparts.o
+obj-$(CONFIG_CMD_A20_NANDREAD) += cmd_a20_nandread.o
 obj-$(CONFIG_CMD_NAND) += cmd_nand.o
 obj-$(CONFIG_CMD_NET) += cmd_net.o
 obj-$(CONFIG_CMD_ONENAND) += cmd_onenand.o

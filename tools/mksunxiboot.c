@@ -65,7 +65,7 @@ int gen_check_sum(struct boot_file_head *head_p)
 
 #define SUN4I_SRAM_SIZE 0x7600	/* 0x7748+ is used by BROM */
 #define SRAM_LOAD_MAX_SIZE (SUN4I_SRAM_SIZE - sizeof(struct boot_file_head))
-#define BLOCK_SIZE 512
+#define BLOCK_SIZE 0x2000
 
 struct boot_img {
 	struct boot_file_head header;
