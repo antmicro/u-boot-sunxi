@@ -2,8 +2,8 @@
 
 #define NAND_H
 
-#define W32(a, b) (*(volatile unsigned int *)(a)) = b
-#define R32(a) (*(volatile unsigned int *)(a))
+#define writei(a, b) (*(volatile unsigned int *)(a)) = b
+#define readi(a) (*(volatile unsigned int *)(a))
 
 #define PORTC_BASE                 0x01c20800
 #define CCMU_BASE                  0x01c20000

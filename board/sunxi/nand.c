@@ -26,20 +26,20 @@ void nand_set_clocks(void)
 {
 	uint32_t val;
 
-	W32(PORTC_BASE + 0x48, 0x22222222);
-	W32(PORTC_BASE + 0x4C, 0x22222222);
-	W32(PORTC_BASE + 0x50, 0x2222222);
-	W32(PORTC_BASE + 0x54, 0x2);
-	W32(PORTC_BASE + 0x5C, 0x55555555);
-	W32(PORTC_BASE + 0x60, 0x15555);
-	W32(PORTC_BASE + 0x64, 0x5140);
-	W32(PORTC_BASE + 0x68, 0x4016);
+	writei(PORTC_BASE + 0x48, 0x22222222);
+	writei(PORTC_BASE + 0x4C, 0x22222222);
+	writei(PORTC_BASE + 0x50, 0x2222222);
+	writei(PORTC_BASE + 0x54, 0x2);
+	writei(PORTC_BASE + 0x5C, 0x55555555);
+	writei(PORTC_BASE + 0x60, 0x15555);
+	writei(PORTC_BASE + 0x64, 0x5140);
+	writei(PORTC_BASE + 0x68, 0x4016);
 
-	val = R32(CCMU_BASE + 0x60);
-	W32(CCMU_BASE + 0x60, 0x2000 | val);
+	val = readi(CCMU_BASE + 0x60);
+	writei(CCMU_BASE + 0x60, 0x2000 | val);
 
-	val = R32(CCMU_BASE + 0x80);
-	W32(CCMU_BASE + 0x80, val | 0x80000000 | 0x1);
+	val = readi(CCMU_BASE + 0x80);
+	writei(CCMU_BASE + 0x80, val | 0x80000000 | 0x1);
 }
 
 volatile int nand_initialized;
@@ -116,11 +116,11 @@ void nand_read_block(unsigned int real_addr, int syndrome)
 	memset((void *)temp_buf, 0, SPL_WRITE_SIZE);
 
 	/* set CMD  */
-	W32(NANDFLASHC_BASE + NANDFLASHC_CMD,
+	writei(NANDFLASHC_BASE + NANDFLASHC_CMD,
 	    NFC_SEND_CMD1 | NFC_WAIT_FLAG | 0xff);
 
 	do {
-		val = R32(NANDFLASHC_BASE + NANDFLASHC_ST);
+		val = readi(NANDFLASHC_BASE + NANDFLASHC_ST);
 		if (val & (1 << 1))
 			break;
 		udelay(1000);
@@ -135,7 +135,7 @@ void nand_read_block(unsigned int real_addr, int syndrome)
 	}
 
 	/* clear ecc status */
-	W32(NANDFLASHC_BASE + NANDFLASHC_ECC_ST, 0);
+	writei(NANDFLASHC_BASE + NANDFLASHC_ECC_ST, 0);
 
 	/* Choose correct seed */
 	if (syndrome)
@@ -143,54 +143,54 @@ void nand_read_block(unsigned int real_addr, int syndrome)
 	else
 		rand_seed = random_seed[page % 128];
 
-	W32(NANDFLASHC_BASE + NANDFLASHC_ECC_CTL,
+	writei(NANDFLASHC_BASE + NANDFLASHC_ECC_CTL,
 	    (rand_seed << 16) | NFC_ECC_RANDOM_EN | NFC_ECC_EN |
 	    NFC_ECC_PIPELINE | (ecc_mode << 12));
 
-	val = R32(NANDFLASHC_BASE + NANDFLASHC_CTL);
-	W32(NANDFLASHC_BASE + NANDFLASHC_CTL, val | NFC_CTL_RAM_METHOD);
+	val = readi(NANDFLASHC_BASE + NANDFLASHC_CTL);
+	writei(NANDFLASHC_BASE + NANDFLASHC_CTL, val | NFC_CTL_RAM_METHOD);
 
 	if (syndrome) {
-		W32(NANDFLASHC_BASE + NANDFLASHC_SPARE_AREA, SPL_WRITE_SIZE);
+		writei(NANDFLASHC_BASE + NANDFLASHC_SPARE_AREA, SPL_WRITE_SIZE);
 	} else {
 		oob_offset = 0x2000  + (column / SPL_WRITE_SIZE) * ECC_OFF;
-		W32(NANDFLASHC_BASE + NANDFLASHC_SPARE_AREA, oob_offset);
+		writei(NANDFLASHC_BASE + NANDFLASHC_SPARE_AREA, oob_offset);
 	}
 
 	/* DMAC */
-	W32(DMAC_BASE + 0x300, 0x0); /* clr dma cmd */
+	writei(DMAC_BASE + 0x300, 0x0); /* clr dma cmd */
 	/* read from REG_IO_DATA */
-	W32(DMAC_BASE + 0x304, NANDFLASHC_BASE + NANDFLASHC_IO_DATA);
-	W32(DMAC_BASE + 0x308, (uint32_t)temp_buf); /* read to RAM */
-	W32(DMAC_BASE + 0x318, 0x7F0F);
-	W32(DMAC_BASE + 0x30C, SPL_WRITE_SIZE); /* 1kB */
-	W32(DMAC_BASE + 0x300, 0x84000423);
+	writei(DMAC_BASE + 0x304, NANDFLASHC_BASE + NANDFLASHC_IO_DATA);
+	writei(DMAC_BASE + 0x308, (uint32_t)temp_buf); /* read to RAM */
+	writei(DMAC_BASE + 0x318, 0x7F0F);
+	writei(DMAC_BASE + 0x30C, SPL_WRITE_SIZE); /* 1kB */
+	writei(DMAC_BASE + 0x300, 0x84000423);
 
-	W32(NANDFLASHC_BASE + NANDFLASHC_RCMD_SET, 0x00E00530); /* READ */
-	W32(NANDFLASHC_BASE + NANDFLASHC_SECTOR_NUM, 1);
-	W32(NANDFLASHC_BASE + NANDFLASHC_ADDR_LOW,
+	writei(NANDFLASHC_BASE + NANDFLASHC_RCMD_SET, 0x00E00530); /* READ */
+	writei(NANDFLASHC_BASE + NANDFLASHC_SECTOR_NUM, 1);
+	writei(NANDFLASHC_BASE + NANDFLASHC_ADDR_LOW,
 	    ((page & 0xFFFF) << 16) | column);
-	W32(NANDFLASHC_BASE + NANDFLASHC_ADDR_HIGH, (page >> 16) & 0xFF);
-	W32(NANDFLASHC_BASE + NANDFLASHC_CMD,
+	writei(NANDFLASHC_BASE + NANDFLASHC_ADDR_HIGH, (page >> 16) & 0xFF);
+	writei(NANDFLASHC_BASE + NANDFLASHC_CMD,
 	    NFC_SEND_CMD1 | NFC_SEND_CMD2 | NFC_DATA_TRANS |
 	    NFC_PAGE_CMD | NFC_WAIT_FLAG | /* ADDR_CYCLE */ (4 << 16) |
 	    NFC_SEND_ADR | NFC_DATA_SWAP_METHOD | (syndrome ? NFC_SEQ : 0));
 
 	do { /* wait for dma irq */
-		val = R32(NANDFLASHC_BASE + NANDFLASHC_ST);
+		val = readi(NANDFLASHC_BASE + NANDFLASHC_ST);
 		if (val & (1 << 2))
 			break;
 		udelay(1000);
 	} while (1);
 
 	do { /* make sure cmd is finished */
-		val = R32(DMAC_BASE + 300);
+		val = readi(DMAC_BASE + 300);
 		if (!(val & 0x80000000))
 			break;
 		udelay(1000);
 	} while (1);
 
-	if (R32(NANDFLASHC_BASE + NANDFLASHC_ECC_ST))
+	if (readi(NANDFLASHC_BASE + NANDFLASHC_ECC_ST))
 		ecc_errors++;
 }
 
@@ -242,11 +242,11 @@ int board_nand_init(struct nand_chip *nand)
 	}
 	nand_initialized = 1;
 	nand_set_clocks();
-	val = R32(NANDFLASHC_BASE + NANDFLASHC_CTL);
+	val = readi(NANDFLASHC_BASE + NANDFLASHC_CTL);
 	/* enable and reset CTL */
-	W32(NANDFLASHC_BASE + NANDFLASHC_CTL, val | NFC_CTL_EN | NFC_CTL_RESET);
+	writei(NANDFLASHC_BASE + NANDFLASHC_CTL, val | NFC_CTL_EN | NFC_CTL_RESET);
 	do {
-		val = R32(NANDFLASHC_BASE + NANDFLASHC_CTL);
+		val = readi(NANDFLASHC_BASE + NANDFLASHC_CTL);
 		if (val & NFC_CTL_RESET)
 			break;
 	} while (1);
