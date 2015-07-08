@@ -22,6 +22,32 @@ unsigned char temp_buf[SPL_WRITE_SIZE] __aligned(0x10) __section(".text#");
 unsigned char *temp_buf = (unsigned char *)0x0;
 #endif
 
+#define MAX_RETRIES 5
+
+static int check_value_inner(int offset, int expected_bits, int max_number_of_retries, int negation)
+{
+    int retries = 0;
+	do {
+		int val = readi(offset) & expected_bits;
+		if (negation ? !val : val)
+			return 1;
+		mdelay(1);
+		retries++;
+	} while (retries < max_number_of_retries);
+
+	return 0;
+}
+
+static inline int check_value(int offset, int expected_bits, int max_number_of_retries)
+{
+    return check_value_inner(offset, expected_bits, max_number_of_retries, 0);
+}
+
+static inline int check_value_negated(int offset, int unexpected_bits, int max_number_of_retries)
+{
+    return check_value_inner(offset, unexpected_bits, max_number_of_retries, 1);
+}
+
 void nand_set_clocks(void)
 {
 	uint32_t val;
@@ -119,13 +145,11 @@ void nand_read_block(unsigned int real_addr, int syndrome)
 	writei(NANDFLASHC_BASE + NANDFLASHC_CMD,
 	    NFC_SEND_CMD1 | NFC_WAIT_FLAG | 0xff);
 
-	do {
-		val = readi(NANDFLASHC_BASE + NANDFLASHC_ST);
-		if (val & (1 << 1))
-			break;
-		udelay(1000);
-	} while (1);
-
+    if (!check_value(NANDFLASHC_BASE + NANDFLASHC_ST, (1 << 1), MAX_RETRIES)) {
+        printf("Error while initilizing command interrupt");
+        return;
+    }
+    
 	page = (real_addr / 0x2000);
 	column = real_addr % 0x2000;
 
@@ -176,19 +200,15 @@ void nand_read_block(unsigned int real_addr, int syndrome)
 	    NFC_PAGE_CMD | NFC_WAIT_FLAG | /* ADDR_CYCLE */ (4 << 16) |
 	    NFC_SEND_ADR | NFC_DATA_SWAP_METHOD | (syndrome ? NFC_SEQ : 0));
 
-	do { /* wait for dma irq */
-		val = readi(NANDFLASHC_BASE + NANDFLASHC_ST);
-		if (val & (1 << 2))
-			break;
-		udelay(1000);
-	} while (1);
+    if (!check_value(NANDFLASHC_BASE + NANDFLASHC_ST, (1 << 2), MAX_RETRIES)) {
+        printf("Error while initializing dma interrupt");
+        return;
+    }
 
-	do { /* make sure cmd is finished */
-		val = readi(DMAC_BASE + 300);
-		if (!(val & 0x80000000))
-			break;
-		udelay(1000);
-	} while (1);
+    if (!check_value_negated(DMAC_BASE + 300, 0x80000000, MAX_RETRIES)) {
+        printf("Error while waiting for cmd to be finished.");
+        return;
+    }
 
 	if (readi(NANDFLASHC_BASE + NANDFLASHC_ECC_ST))
 		ecc_errors++;
@@ -245,11 +265,11 @@ int board_nand_init(struct nand_chip *nand)
 	val = readi(NANDFLASHC_BASE + NANDFLASHC_CTL);
 	/* enable and reset CTL */
 	writei(NANDFLASHC_BASE + NANDFLASHC_CTL, val | NFC_CTL_EN | NFC_CTL_RESET);
-	do {
-		val = readi(NANDFLASHC_BASE + NANDFLASHC_CTL);
-		if (val & NFC_CTL_RESET)
-			break;
-	} while (1);
+
+	if(!check_value(NANDFLASHC_BASE + NANDFLASHC_CTL, NFC_CTL_RESET, MAX_RETRIES)) {
+        printf("Couldn't initialize nand");
+        return 1;
+    }
 
 	return 0;
 }
