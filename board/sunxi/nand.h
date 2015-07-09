@@ -2,9 +2,6 @@
 
 #define NAND_H
 
-#define writei(a, b) (*(volatile unsigned int *)(a)) = b
-#define readi(a) (*(volatile unsigned int *)(a))
-
 #define PORTC_BASE                 0x01c20800
 #define CCMU_BASE                  0x01c20000
 #define NANDFLASHC_BASE            0x01c03000
